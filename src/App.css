@@ -1,0 +1,148 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: sans-serif;
+  background: #0a1f12;
+  color: white;
+  min-height: 100vh;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  min-height: 100vh;
+}
+
+.croco-big { font-size: 56px; margin-bottom: 0.5rem; }
+
+h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  color: #a8e6c4;
+  font-size: 15px;
+  margin-bottom: 1.5rem;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 1rem;
+}
+
+input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #1D9E75;
+  background: #0f2d1a;
+  color: white;
+  font-size: 15px;
+}
+
+input::placeholder { color: #5a8a6a; }
+
+.btn-main {
+  padding: 10px 20px;
+  background: #1D9E75;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-main:hover { background: #0F6E56; }
+.btn-main.big { margin-top: 1rem; padding: 14px 32px; font-size: 17px; }
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 400px;
+  margin-bottom: 0.5rem;
+}
+
+.tag {
+  background: #0f2d1a;
+  border: 1px solid #1D9E75;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag button {
+  background: none;
+  border: none;
+  color: #a8e6c4;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.loser-name {
+  font-size: 36px;
+  font-weight: 700;
+  color: #e24b4a;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.croco-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  max-width: 500px;
+  margin: 1.5rem 0 1rem;
+}
+
+.croco-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  width: 100px;
+}
+
+.croco-svg { width: 80px; height: 80px; }
+
+.croco-name {
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.badge-pay {
+  background: #4a0f0f;
+  color: #f09595;
+  font-size: 12px;
+  border-radius: 12px;
+  padding: 3px 10px;
+}
+
+.badge-nopay {
+  background: #0f2d1a;
+  color: #a8e6c4;
+  font-size: 12px;
+  border-radius: 12px;
+  padding: 3px 10px;
+}
+
+.hint {
+  color: #5a8a6a;
+  font-size: 13px;
+  margin-bottom: 1rem;
+}
