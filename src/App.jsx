@@ -2,6 +2,12 @@ import { useState } from 'react'
 import './App.css'
 
 const COLORS = ['#1D9E75','#0F6E56','#3db369','#27a862','#139e5a','#085041']
+const HISTORY_KEY = 'crocodile_history'
+
+const loadHistory = () => {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [] }
+  catch { return [] }
+}
 
 function CrocoSVG({ color, open }) {
   return (
@@ -34,6 +40,8 @@ export default function App() {
   const [names, setNames] = useState([])
   const [loser, setLoser] = useState('')
   const [revealed, setRevealed] = useState({})
+  const [suspense, setSuspense] = useState(false)
+  const [history, setHistory] = useState(loadHistory)
 
   const addName = () => {
     const val = input.trim()
@@ -45,10 +53,19 @@ export default function App() {
   const removeName = (n) => setNames(names.filter(x => x !== n))
 
   const lancerTirage = () => {
-    const picked = names[Math.floor(Math.random() * names.length)]
-    setLoser(picked)
-    setRevealed({})
-    setScreen('result')
+    if (names.length < 2) return
+    setSuspense(true)
+    setTimeout(() => {
+      const picked = names[Math.floor(Math.random() * names.length)]
+      const entry = { loser: picked, names: [...names], date: new Date().toLocaleDateString('fr-FR') }
+      const newHistory = [entry, ...loadHistory()].slice(0, 20)
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory))
+      setHistory(newHistory)
+      setLoser(picked)
+      setRevealed({})
+      setSuspense(false)
+      setScreen('result')
+    }, 2500)
   }
 
   const clickCroco = (name) => {
@@ -63,6 +80,23 @@ export default function App() {
     setRevealed({})
     setScreen('setup')
   }
+
+  if (screen === 'history') return (
+    <div className="screen">
+      <div className="croco-big">📋</div>
+      <h1>Historique</h1>
+      <div className="history-list">
+        {history.map((entry, i) => (
+          <div key={i} className="history-item">
+            <span className="history-date">{entry.date}</span>
+            <span className="history-loser">🐊 {entry.loser}</span>
+            <span className="history-names">{entry.names.join(', ')}</span>
+          </div>
+        ))}
+      </div>
+      <button className="btn-main" onClick={() => setScreen('setup')}>Retour</button>
+    </div>
+  )
 
   if (screen === 'setup') return (
     <div className="screen">
@@ -88,8 +122,17 @@ export default function App() {
         ))}
       </div>
       {names.length >= 2 && (
-        <button className="btn-main big" onClick={lancerTirage}>
-          Lancer le tirage 🎲
+        <button
+          className={`btn-main big ${suspense ? 'shaking' : ''}`}
+          onClick={lancerTirage}
+          disabled={suspense}
+        >
+          {suspense ? 'Le croco choisit... 🐊' : 'Lancer le tirage 🎲'}
+        </button>
+      )}
+      {history.length > 0 && (
+        <button className="btn-history" onClick={() => setScreen('history')}>
+          Historique ({history.length}) 📋
         </button>
       )}
     </div>
