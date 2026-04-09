@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from './supabase'
 import './App.css'
 
 const COLORS = ['#1D9E75','#0F6E56','#3db369','#27a862','#139e5a','#085041']
@@ -8,6 +9,8 @@ const loadHistory = () => {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [] }
   catch { return [] }
 }
+
+const genCode = () => Math.random().toString(36).substring(2, 7).toUpperCase()
 
 function CrocoSVG({ color, open }) {
   return (
@@ -35,13 +38,35 @@ function CrocoSVG({ color, open }) {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState('setup')
+  const [screen, setScreen] = useState('home')
   const [input, setInput] = useState('')
   const [names, setNames] = useState([])
   const [loser, setLoser] = useState('')
   const [revealed, setRevealed] = useState({})
   const [suspense, setSuspense] = useState(false)
   const [history, setHistory] = useState(loadHistory)
+  const [joinCode, setJoinCode] = useState('')
+  const [session, setSession] = useState(null)
+  const [isHost, setIsHost] = useState(false)
+
+  useEffect(() => {
+    if (!session) return
+    const channel = supabase
+      .channel('session-' + session.id)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sessions',
+        filter: `id=eq.${session.id}`
+      }, (payload) => {
+        const s = payload.new
+        setSession(s)
+        if (s.loser) setLoser(s.loser)
+        if (s.status === 'result') setScreen('result')
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [session?.id])
 
   const addName = () => {
     const val = input.trim()
@@ -52,17 +77,56 @@ export default function App() {
 
   const removeName = (n) => setNames(names.filter(x => x !== n))
 
-  const lancerTirage = () => {
-    if (names.length < 2) return
+  const creerSession = async () => {
+    const code = genCode()
+    const { data, error } = await supabase
+      .from('sessions')
+      .insert({ id: code, names, status: 'waiting', loser: null })
+      .select()
+      .single()
+    if (error) { alert('Erreur: ' + error.message); return }
+    setSession(data)
+    setIsHost(true)
+    setScreen('lobby')
+  }
+
+  const rejoindreSession = async () => {
+    if (!joinCode.trim()) return
+    const { data, error } = await supabase
+      .from('sessions')
+      .select()
+      .eq('id', joinCode.toUpperCase())
+      .single()
+    if (error || !data) { alert('Session introuvable !'); return }
+    setSession(data)
+    setNames(data.names)
+    setIsHost(false)
+    if (data.status === 'result') {
+      setLoser(data.loser)
+      setScreen('result')
+    } else {
+      setScreen('lobby')
+    }
+  }
+
+  const lancerTirage = async () => {
+    if (!isHost) return
     setSuspense(true)
-    setTimeout(() => {
+    setTimeout(async () => {
       const picked = names[Math.floor(Math.random() * names.length)]
-      const entry = { loser: picked, names: [...names], date: new Date().toLocaleDateString('fr-FR') }
+      const entry = {
+        loser: picked,
+        names: [...names],
+        date: new Date().toLocaleDateString('fr-FR')
+      }
       const newHistory = [entry, ...loadHistory()].slice(0, 20)
       localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory))
       setHistory(newHistory)
+      await supabase
+        .from('sessions')
+        .update({ loser: picked, status: 'result' })
+        .eq('id', session.id)
       setLoser(picked)
-      setRevealed({})
       setSuspense(false)
       setScreen('result')
     }, 2500)
@@ -78,7 +142,10 @@ export default function App() {
     setInput('')
     setLoser('')
     setRevealed({})
-    setScreen('setup')
+    setSession(null)
+    setJoinCode('')
+    setIsHost(false)
+    setScreen('home')
   }
 
   if (screen === 'history') return (
@@ -94,11 +161,67 @@ export default function App() {
           </div>
         ))}
       </div>
-      <button className="btn-main" onClick={() => setScreen('setup')}>Retour</button>
+      <button className="btn-main" onClick={() => setScreen('home')}>Retour</button>
     </div>
   )
 
-  if (screen === 'setup') return (
+  if (screen === 'lobby') return (
+    <div className="screen">
+      <div className="croco-big">🐊</div>
+      <h1>{isHost ? 'Session créée !' : 'Session rejointe !'}</h1>
+      <div className="session-code">{session?.id}</div>
+      <p className="subtitle">Partage ce code à tes potes</p>
+      <div className="tags">
+        {(session?.names || names).map(n => (
+          <span key={n} className="tag">{n}</span>
+        ))}
+      </div>
+      {isHost && (
+        <button
+          className={`btn-main big ${suspense ? 'shaking' : ''}`}
+          onClick={lancerTirage}
+          disabled={suspense}
+        >
+          {suspense ? 'Le croco choisit... 🐊' : 'Lancer le tirage 🎲'}
+        </button>
+      )}
+      {!isHost && (
+        <p className="hint">En attente que l'hôte lance le tirage...</p>
+      )}
+    </div>
+  )
+
+  if (screen === 'result') return (
+    <div className="screen">
+      <div className="croco-big">🐊</div>
+      <h1>Le croco a décidé !</h1>
+      <div className="loser-name">
+        {revealed[loser] ? loser : '???'}
+      </div>
+      <p className="subtitle">
+        {revealed[loser] ? 'doit payer la tournée !' : 'Clique sur ton croco pour révéler !'}
+      </p>
+      <div className="croco-grid">
+        {(session?.names || names).map((n, i) => {
+          const rev = revealed[n]
+          const isLoser = n === loser
+          const color = rev === 'pay' ? '#e24b4a' : rev === 'nopay' ? '#3db369' : COLORS[i % COLORS.length]
+          return (
+            <div key={n} className="croco-card" onClick={() => clickCroco(n)}>
+              <CrocoSVG color={color} open={rev === 'pay'} />
+              <div className="croco-name">{n}</div>
+              {rev === 'pay' && <span className="badge-pay">Je paye 💸</span>}
+              {rev === 'nopay' && <span className="badge-nopay">Tranquille ✓</span>}
+            </div>
+          )
+        })}
+      </div>
+      <p className="hint">Chaque pote clique sur son croco</p>
+      <button className="btn-main" onClick={restart}>Nouvelle partie</button>
+    </div>
+  )
+
+  return (
     <div className="screen">
       <div className="croco-big">🐊</div>
       <h1>Crocodile</h1>
@@ -122,45 +245,28 @@ export default function App() {
         ))}
       </div>
       {names.length >= 2 && (
-        <button
-          className={`btn-main big ${suspense ? 'shaking' : ''}`}
-          onClick={lancerTirage}
-          disabled={suspense}
-        >
-          {suspense ? 'Le croco choisit... 🐊' : 'Lancer le tirage 🎲'}
+        <button className="btn-main big" onClick={creerSession}>
+          Créer une session 🎲
         </button>
       )}
+      <div className="join-section">
+        <p className="subtitle" style={{marginBottom: '0.5rem'}}>Rejoindre une session</p>
+        <div className="input-row">
+          <input
+            value={joinCode}
+            onChange={e => setJoinCode(e.target.value)}
+            placeholder="Code..."
+            maxLength={5}
+            style={{textTransform: 'uppercase', letterSpacing: '4px', textAlign: 'center'}}
+          />
+          <button className="btn-main" onClick={rejoindreSession}>Rejoindre</button>
+        </div>
+      </div>
       {history.length > 0 && (
         <button className="btn-history" onClick={() => setScreen('history')}>
           Historique ({history.length}) 📋
         </button>
       )}
-    </div>
-  )
-
-  return (
-    <div className="screen">
-      <div className="croco-big">🐊</div>
-      <h1>Le croco a décidé !</h1>
-      <div className="loser-name">{loser}</div>
-      <p className="subtitle">doit payer la tournée !</p>
-      <div className="croco-grid">
-        {names.map((n, i) => {
-          const rev = revealed[n]
-          const isLoser = n === loser
-          const color = rev === 'pay' ? '#e24b4a' : rev === 'nopay' ? '#3db369' : COLORS[i % COLORS.length]
-          return (
-            <div key={n} className="croco-card" onClick={() => clickCroco(n)}>
-              <CrocoSVG color={color} open={rev === 'pay'} />
-              <div className="croco-name">{n}{isLoser && !rev ? ' 🎯' : ''}</div>
-              {rev === 'pay' && <span className="badge-pay">Je paye 💸</span>}
-              {rev === 'nopay' && <span className="badge-nopay">Tranquille ✓</span>}
-            </div>
-          )
-        })}
-      </div>
-      <p className="hint">Chaque pote clique sur son croco</p>
-      <button className="btn-main" onClick={restart}>Recommencer</button>
     </div>
   )
 }
